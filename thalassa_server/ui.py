@@ -2,27 +2,70 @@
 from __future__ import annotations
 
 import gc
-import glob
 import logging
 import operator
 import os.path
 import pathlib
+
 from functools import reduce
 
+import adlfs
 import geoviews as gv
 import panel as pn
 import param
 import xarray as xr
+
+from azure.identity import AzureCliCredential
+from azure.identity import ChainedTokenCredential
+from azure.identity import EnvironmentCredential
+from azure.identity import ManagedIdentityCredential
 from thalassa import api
-from thalassa import normalization
+
+# from thalassa import normalization
 from thalassa import utils
 
+# from .notify import notify
+from .notify import notify_exceptions
 
 logger = logging.getLogger(__name__)
 logger.error(logger.handlers)
 
 DATA_DIR = "./data/"
 DATA_GLOB = DATA_DIR + os.path.sep + "*"
+
+
+def get_credential() -> ChainedTokenCredential:
+    credential_chain = (
+        EnvironmentCredential(),
+        AzureCliCredential(),
+        ManagedIdentityCredential(),
+    )
+    credential = ChainedTokenCredential(*credential_chain)
+    return credential
+
+
+def get_blob_fs(
+    storage_account_name: str,
+    credential: ChainedTokenCredential | None = None,
+) -> adlfs.AzureBlobFileSystem:
+    if not credential:
+        credential = get_credential()
+    file_system = adlfs.AzureBlobFileSystem(
+        account_name=storage_account_name,
+        credential=credential,
+        anon=False,
+    )
+    return file_system
+
+
+CREDENTIAL = get_credential()
+
+STORAGE_OPTIONS = {
+    "account_name": "srppublicsa",
+    "crednetial": CREDENTIAL,
+}
+
+BLOB = get_blob_fs("srppublicsa")
 
 MISSING_DATA_DIR = pn.pane.Alert(
     f"## Directory <{DATA_DIR}> is missing. Please create it and add some suitable netcdf files.",
@@ -58,12 +101,13 @@ class FloatInputNoSpinner(pn.widgets.input._FloatInputBase):
 
 
 def choose_info_message() -> pn.pane.Alert:
-    if not pathlib.Path(DATA_DIR).is_dir():
-        message = MISSING_DATA_DIR
-    elif not sorted(filter(normalization.can_be_inferred, glob.glob(DATA_GLOB))):
-        message = EMPTY_DATA_DIR
-    else:
-        message = CHOOSE_FILE
+    # if not pathlib.Path(DATA_DIR).is_dir():
+    #     message = MISSING_DATA_DIR
+    # elif not sorted(filter(normalization.can_be_inferred, glob.glob(DATA_GLOB))):
+    #     message = EMPTY_DATA_DIR
+    # else:
+    #     message = CHOOSE_FILE
+    message = CHOOSE_FILE
     return pn.Row(message, width_policy="fit")
 
 
@@ -127,6 +171,12 @@ def get_colorbar_row(
     return row
 
 
+def get_dataset(dataset_file: str) -> xr.Dataset:
+    uri = f"az://{dataset_file}"
+    ds: xr.Dataset = api.open_dataset(uri, engine="zarr", normalize=True, storage_options=STORAGE_OPTIONS)
+    return ds
+
+
 class ThalassaUI:  # pylint: disable=too-many-instance-attributes
     """
     This UI is supposed to be used with a Bootstrap-like template supporting
@@ -154,7 +204,7 @@ class ThalassaUI:  # pylint: disable=too-many-instance-attributes
         # Define widgets
         self.dataset_file = pn.widgets.Select(
             name="Dataset file",
-            options=["", *sorted(filter(normalization.can_be_inferred, glob.glob(DATA_GLOB)))],
+            options=["", *sorted(BLOB.ls("public/"))],
         )
         self.variable = pn.widgets.Select(name="Plot Variable")
         self.ts_variable = pn.widgets.Select(name="Timeseries Variable")
@@ -209,6 +259,7 @@ class ThalassaUI:  # pylint: disable=too-many-instance-attributes
         self._raster = None
         self._reset_colorbar()
 
+    @notify_exceptions
     def _update_dataset_file(self, event: param.Event) -> None:
         dataset_file = self.dataset_file.value
         if not dataset_file:
@@ -217,7 +268,7 @@ class ThalassaUI:  # pylint: disable=too-many-instance-attributes
         else:
             try:
                 logger.debug("Trying to normalize the selected dataset: %s", dataset_file)
-                self._dataset = api.open_dataset(dataset_file, normalize=True)
+                self._dataset = get_dataset(dataset_file)
             except ValueError:
                 logger.exception("Normalization failed. Resetting the UI")
                 self._reset_ui(message=UNKNOWN_FORMAT)
@@ -241,6 +292,7 @@ class ThalassaUI:  # pylint: disable=too-many-instance-attributes
                 self._main.objects = [PLEASE_RENDER]
                 self._reset_colorbar()
 
+    @notify_exceptions
     def _on_variable_change(self, event: param.Event) -> None:
         logger.warning(event)
         try:
@@ -272,6 +324,7 @@ class ThalassaUI:  # pylint: disable=too-many-instance-attributes
         for widget in widgets:
             logger.error("%s: %s", widget.name, widget.value)
 
+    @notify_exceptions
     def _update_main(self, event: param.Event) -> None:
         try:
             # XXX For some reason, which I can't understand
@@ -309,7 +362,7 @@ class ThalassaUI:  # pylint: disable=too-many-instance-attributes
             # the first one remains in RAM.
             # In order to avoid this, we re-open the dataset in order to get a clean Dataset
             # instance without anything loaded into memory
-            ds = api.open_dataset(self.dataset_file.value, normalize=True)
+            ds = get_dataset(self.dataset_file.value)
 
             # local variables
             variable = self.variable.value
@@ -396,6 +449,8 @@ class ThalassaUI:  # pylint: disable=too-many-instance-attributes
 
         except Exception as exc:
             print(exc)
+            # notify(exc)
+            # notify(f"{traceback.format_exc()}")
             logger.exception("Something went wrong")
             raise
 

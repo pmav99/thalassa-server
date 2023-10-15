@@ -31,6 +31,8 @@ param = "*"
 "ruamel.yaml" = "*"
 thalassa = ">=0.4.1"
 xarray = "*"
+adlfs = "*"
+azure-identity = "*"
 
 [tool.poetry.group.dev.dependencies]
 mypy = ">=1"
