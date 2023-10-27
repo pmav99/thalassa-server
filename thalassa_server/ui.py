@@ -214,7 +214,6 @@ class ThalassaUI:  # pylint: disable=too-many-instance-attributes
         )
         self.variable = pn.widgets.Select(name="Plot Variable")
         self.ts_variable = pn.widgets.Select(name="Timeseries Variable")
-        self.layer = pn.widgets.Select(name="Layer")
         self.time = pn.widgets.Select(name="Time")
         self.keep_zoom = pn.widgets.Checkbox(name="Keep Zoom", value=True)
         self.show_mesh = pn.widgets.Checkbox(name="Overlay Mesh")
@@ -227,7 +226,6 @@ class ThalassaUI:  # pylint: disable=too-many-instance-attributes
                 pn.WidgetBox(
                     self.dataset_file,
                     self.variable,
-                    self.layer,
                     self.time,
                     self.ts_variable,
                     self.keep_zoom,
@@ -255,7 +253,6 @@ class ThalassaUI:  # pylint: disable=too-many-instance-attributes
         self.variable.param.set_param(options=[], disabled=True)
         self.ts_variable.param.set_param(options=[], disabled=True)
         self.time.param.set_param(options=[], disabled=True)
-        self.layer.param.set_param(options=[], disabled=True)
         self.keep_zoom.param.set_param(disabled=True)
         self.show_mesh.param.set_param(disabled=True)
         # self.show_timeseries.param.set_param(disabled=True)
@@ -304,12 +301,6 @@ class ThalassaUI:  # pylint: disable=too-many-instance-attributes
         try:
             ds = self._dataset
             variable = self.variable.value
-            # handle layer
-            if variable and "layer" in ds[variable].dims:
-                layers = ds.layer.to_numpy().tolist()
-                self.layer.param.set_param(options=layers, disabled=False)
-            else:
-                self.layer.param.set_param(options=[], disabled=True)
             # handle time
             if variable and "time" in ds[variable].dims:
                 # self.show_timeseries.param.set_param(disabled=False)
@@ -321,7 +312,7 @@ class ThalassaUI:  # pylint: disable=too-many-instance-attributes
             self.render_button.param.set_param(disabled=False)
             self._reset_colorbar()
         except Exception:
-            logger.exception("error layer")
+            logger.exception("error")
             raise
 
     def _debug_ui(self) -> None:
@@ -373,14 +364,11 @@ class ThalassaUI:  # pylint: disable=too-many-instance-attributes
             # local variables
             variable = self.variable.value
             timestamp = self.time.value
-            layer = int(self.layer.value) if self.layer.value is not None else None
 
             # We want to filter the dataset. But...
-            # For the raster plot we need to filter on time **and** layer
-            # While for the timeseries we filter just on layer
-            # So let's filter on layer first, keep a reference for the timeseries and filter on time afterwards
-            if layer:
-                ds = ds.sel(layer=layer)
+            # For the raster plot we may need to filter on time
+            # While for the timeseries we don't filter at all
+            # So let's keep a reference for the timeseries and filter on time afterwards
             ds_ts = ds
             if timestamp:
                 ds = ds.sel(time=timestamp)
@@ -389,7 +377,7 @@ class ThalassaUI:  # pylint: disable=too-many-instance-attributes
             # What we do here needs some explaining.
             # A prerequisite for generating the DynamicMaps is to create the trimesh.
             # The trimesh is needed for both the wireframe and the raster.
-            # No matter what widget we change (variable, timestamp, layer), we need to generate
+            # No matter what widget we change (variable, timestamp), we need to generate
             # a new trimesh object. This is why the trimesh is a local variable and not an
             # instance attribute (which would be cached)
             trimesh = api.create_trimesh(ds, variable=variable)
