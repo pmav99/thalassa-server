@@ -173,7 +173,13 @@ def get_colorbar_row(
 
 def get_dataset(dataset_file: str) -> xr.Dataset:
     uri = f"az://{dataset_file}"
-    ds: xr.Dataset = api.open_dataset(uri, engine="zarr", normalize=True, storage_options=STORAGE_OPTIONS)
+    ds: xr.Dataset = api.open_dataset(
+        uri,
+        engine="zarr",
+        normalize=True,
+        storage_options=STORAGE_OPTIONS,
+        chunks={},
+    )
     return ds
 
 
