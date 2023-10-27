@@ -61,11 +61,11 @@ def get_blob_fs(
 CREDENTIAL = get_credential()
 
 STORAGE_OPTIONS = {
-    "account_name": "srppublicsa",
-    "crednetial": CREDENTIAL,
+    "account_name": "seareport",
+    "credential": CREDENTIAL,
 }
 
-BLOB = get_blob_fs("srppublicsa")
+BLOB = get_blob_fs("seareport")
 
 MISSING_DATA_DIR = pn.pane.Alert(
     f"## Directory <{DATA_DIR}> is missing. Please create it and add some suitable netcdf files.",
@@ -204,7 +204,7 @@ class ThalassaUI:  # pylint: disable=too-many-instance-attributes
         # Define widgets
         self.dataset_file = pn.widgets.Select(
             name="Dataset file",
-            options=["", *sorted(BLOB.ls("public/"))],
+            options=["", *sorted(BLOB.ls("global-v1/"))],
         )
         self.variable = pn.widgets.Select(name="Plot Variable")
         self.ts_variable = pn.widgets.Select(name="Timeseries Variable")
