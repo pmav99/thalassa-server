@@ -210,7 +210,7 @@ class ThalassaUI:  # pylint: disable=too-many-instance-attributes
         # Define widgets
         self.dataset_file = pn.widgets.Select(
             name="Dataset file",
-            options=["", *sorted(BLOB.ls("global-v1/"))],
+            options=["", *list(reversed(BLOB.ls("global-v1/")))[1:]],
         )
         self.variable = pn.widgets.Select(name="Plot Variable")
         self.ts_variable = pn.widgets.Select(name="Timeseries Variable")
