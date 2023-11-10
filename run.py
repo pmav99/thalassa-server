@@ -6,7 +6,7 @@ import panel as pn
 from holoviews import opts as hvopts
 from ruamel.yaml import YAML
 
-import thalassa_server.ui
+import seareport_server.ui
 
 yaml = YAML(typ="safe", pure=True)
 
@@ -52,7 +52,7 @@ hvopts.defaults(
 )
 
 
-ui = thalassa_server.ui.ThalassaUI()
+ui = seareport_server.ui.SeareportUI()
 
 # https://panel.holoviz.org/reference/templates/Bootstrap.html
 # template = pn.template.FastListTemplate(
@@ -60,10 +60,10 @@ ui = thalassa_server.ui.ThalassaUI()
 # template = pn.template.BootstrapTemplate(
 template = pn.template.MaterialTemplate(
     # site="example.com",
-    title="Thalassa Server",
+    title="Seareport Server",
     # theme="dark",
-    # logo="thalassa_server/static/logo.png",
-    # favicon="thalassa_server/static/favicon.png",
+    # logo="seareport_server/static/logo.png",
+    # favicon="seareport_server/static/favicon.png",
     sidebar=[ui.sidebar],
     # sidebar_width=350,  # in pixels! must be an integer!
     # main_max_width="1350px", #  must be a string!

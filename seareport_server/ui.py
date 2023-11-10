@@ -183,7 +183,12 @@ def get_dataset(dataset_file: str) -> xr.Dataset:
     return ds
 
 
-class ThalassaUI:  # pylint: disable=too-many-instance-attributes
+def get_dataset_files() -> list[str]:
+    files = list(reversed(BLOB.ls("global-v1/")))[1:]
+    return files
+
+
+class SeareportUI:  # pylint: disable=too-many-instance-attributes
     """
     This UI is supposed to be used with a Bootstrap-like template supporting
     a "main" and a "sidebar":
@@ -208,10 +213,7 @@ class ThalassaUI:  # pylint: disable=too-many-instance-attributes
         self._sidebar = pn.Column()
 
         # Define widgets
-        self.dataset_file = pn.widgets.Select(
-            name="Dataset file",
-            options=["", *list(reversed(BLOB.ls("global-v1/")))[1:]],
-        )
+        self.dataset_file = pn.widgets.Select(name="Dataset file", options=["", *get_dataset_files()])
         self.variable = pn.widgets.Select(name="Plot Variable")
         self.ts_variable = pn.widgets.Select(name="Timeseries Variable")
         self.time = pn.widgets.Select(name="Time")

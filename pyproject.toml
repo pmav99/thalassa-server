@@ -1,11 +1,11 @@
 [tool.poetry]
 name = "thalassa-server"
 version = "0.0.0"  # overwritten by poetry-dynamic-versioning plugin
-description = "A webapp for visualizing large scale results of hydrodynamic simulations using thalassa"
+description = "A web app visualizing the results of Seareport"
 authors = ["Panos Mavrogiorgos <pmav99@gmail.com>"]
 license = 'EUPL-1.2'
 readme = "README.md"
-packages = [{include = "thalassa_server"}]
+packages = [{include = "seareport_server"}]
 repository = "https://github.com/oceanmodeling/thalassa-server.git"
 classifiers = [
     "Operating System :: OS Independent",
@@ -36,6 +36,7 @@ azure-identity = "*"
 
 [tool.poetry.group.dev.dependencies]
 mypy = ">=1"
+types-decorator = "*"
 
 [build-system]
 requires = [

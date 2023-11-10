@@ -1,3 +1,9 @@
-## `thalassa_server`
+## `seareport_server`
 
-A reference implementation of a server showcasing [thalassa](https;//github.com/ec-jrc/thalassa)
+A web app visualizing the results of [Seareport]().
+
+## Usage
+
+```bash
+python -mpanel serve run.py
+```

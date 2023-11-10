@@ -14,7 +14,7 @@ lint:
 	pre-commit run ruff -a
 
 mypy:
-	dmypy run thalassa_server
+	dmypy run seareport_server
 
 docs:
 	make -C docs html
