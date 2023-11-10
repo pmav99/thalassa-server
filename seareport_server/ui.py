@@ -15,16 +15,16 @@ import panel as pn
 import param
 import xarray as xr
 
-from azure.identity import AzureCliCredential
-from azure.identity import ChainedTokenCredential
-from azure.identity import EnvironmentCredential
-from azure.identity import ManagedIdentityCredential
+from azure.identity.aio import AzureCliCredential
+from azure.identity.aio import ChainedTokenCredential
+from azure.identity.aio import EnvironmentCredential
+from azure.identity.aio import ManagedIdentityCredential
 from thalassa import api
 
 # from thalassa import normalization
 from thalassa import utils
 
-# from .notify import notify
+from .notify import notify
 from .notify import notify_exceptions
 
 logger = logging.getLogger(__name__)
@@ -64,8 +64,6 @@ STORAGE_OPTIONS = {
     "account_name": "seareport",
     "credential": CREDENTIAL,
 }
-
-BLOB = get_blob_fs("seareport")
 
 MISSING_DATA_DIR = pn.pane.Alert(
     f"## Directory <{DATA_DIR}> is missing. Please create it and add some suitable netcdf files.",
@@ -184,11 +182,12 @@ def get_dataset(dataset_file: str) -> xr.Dataset:
 
 
 def get_dataset_files() -> list[str]:
-    files = list(reversed(BLOB.ls("global-v1/")))[1:]
+    blob = get_blob_fs("seareport")
+    files = list(reversed(blob.ls("global-v1/")))[1:]
     return files
 
 
-class SeareportUI:  # pylint: disable=too-many-instance-attributes
+class SeareportUI:
     """
     This UI is supposed to be used with a Bootstrap-like template supporting
     a "main" and a "sidebar":
@@ -238,15 +237,23 @@ class SeareportUI:  # pylint: disable=too-many-instance-attributes
         )
         logger.debug("UI setup: done")
 
-        # Define callback
+        # Define callbacks
         self.dataset_file.param.watch(fn=self._update_dataset_file, parameter_names="value")
         self.variable.param.watch(fn=self._on_variable_change, parameter_names="value")
         # self.ts_variable.param.watch(fn=self._on_variable_change, parameter_names="value")
         # self.show_timeseries.param.watch(fn=self._on_show_timeseries_clicked, parameter_names="value")
         self.render_button.on_click(callback=self._update_main)
+
+        # Periodically update the dataset files
+        pn.state.schedule_task("update_dataset_files", self._update_dataset_files, period="60s")  # type: ignore[arg-type]
+
         logger.debug("Callback definitions: done")
 
         self._reset_ui(message=choose_info_message())
+
+    async def _update_dataset_files(self) -> None:
+        dataset_files = get_dataset_files()
+        self.dataset_file.param.set_param(options=["", *dataset_files])
 
     def _reset_colorbar(self) -> None:
         self._cbar_row = None
