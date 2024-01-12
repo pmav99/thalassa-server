@@ -395,8 +395,8 @@ class SeareportUI:
             # In order to control dynamically the ColorBar of the raster we create
             # a `panel.Row` with extra widgets.
             # When re-rendering we want to preserve the values of the Colobar widgets
-            clim_min = None
-            clim_max = None
+            clim_min = 0.2 if variable == "elev_max" else None
+            clim_max = 0.8 if variable == "elev_max" else None
             if self._cbar_row:
                 clim_min = self._cbar_row[1].value  # type: ignore[union-attr]
                 clim_max = self._cbar_row[2].value  # type: ignore[union-attr]
