@@ -1,12 +1,12 @@
 [tool.poetry]
-name = "thalassa-server"
+name = "seareport-server"
 version = "0.0.0"  # overwritten by poetry-dynamic-versioning plugin
 description = "A web app visualizing the results of Seareport"
 authors = ["Panos Mavrogiorgos <pmav99@gmail.com>"]
 license = 'EUPL-1.2'
 readme = "README.md"
 packages = [{include = "seareport_server"}]
-repository = "https://github.com/oceanmodeling/thalassa-server.git"
+repository = "https://github.com/ec-jrc/seareport-server.git"
 classifiers = [
     "Operating System :: OS Independent",
     "Development Status :: 4 - Beta",
@@ -29,14 +29,14 @@ holoviews = "*"
 panel = "*"
 param = "*"
 "ruamel.yaml" = "*"
-thalassa = ">=0.4.1"
+#thalassa = ">=0.4.1"
 xarray = "*"
 adlfs = "*"
 azure-identity = "*"
+thalassa = {path = "../thalassa", develop = true}
 
 [tool.poetry.group.dev.dependencies]
 mypy = ">=1"
-types-decorator = "*"
 
 [build-system]
 requires = [

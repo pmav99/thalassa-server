@@ -24,8 +24,6 @@ from thalassa import api
 # from thalassa import normalization
 from thalassa import utils
 
-from .notify import notify
-from .notify import notify_exceptions
 
 logger = logging.getLogger(__name__)
 logger.error(logger.handlers)
@@ -85,12 +83,6 @@ PLEASE_RENDER = pn.pane.Alert(
     "## Please click on the **Render** button to visualize the selected *Variable*",
     alert_type="info",
 )
-
-
-# Python3.8 does not support pathlib.Path.with_stem()
-def with_stem(path: pathlib.Path, stem: str) -> pathlib.Path:
-    """Return a new path with the stem changed."""
-    return path.with_name(stem + path.suffix)
 
 
 # Create a custom FloatInput without a spinner
@@ -200,12 +192,13 @@ class SeareportUI:
     These objects should be of `pn.Column` type. You can append
     """
 
-    def __init__(self) -> None:
+    def __init__(self, fontscale: float = 1.2) -> None:
         self._dataset: xr.Dataset
         self._tiles: gv.Tiles = api.get_tiles()
         self._mesh: gv.DynamicMap | None = None
         self._raster: gv.DynamicMap | None = None
         self._cbar_row: pn.Row | None = None
+        self._fontscale = fontscale
 
         # UI components
         self._main = pn.Column(CHOOSE_FILE, sizing_mode="scale_width")
@@ -271,7 +264,6 @@ class SeareportUI:
         self._raster = None
         self._reset_colorbar()
 
-    @notify_exceptions
     def _update_dataset_file(self, event: param.Event) -> None:
         dataset_file = self.dataset_file.value
         if not dataset_file:
@@ -293,7 +285,8 @@ class SeareportUI:
                 time_dependent_variables = [""] + [
                     var for var in variables if "time" in self._dataset[var].dims
                 ]
-                self.variable.param.set_param(options=variables, value=variables[0], disabled=False)
+                default_variable = "elev_max" if "elev_max" in variables else variables[0]
+                self.variable.param.set_param(options=variables, value=default_variable, disabled=False)
                 self.ts_variable.param.set_param(
                     options=time_dependent_variables,
                     value=time_dependent_variables[0],
@@ -304,7 +297,6 @@ class SeareportUI:
                 self._main.objects = [PLEASE_RENDER]
                 self._reset_colorbar()
 
-    @notify_exceptions
     def _on_variable_change(self, event: param.Event) -> None:
         logger.warning(event)
         try:
@@ -330,7 +322,6 @@ class SeareportUI:
         for widget in widgets:
             logger.error("%s: %s", widget.name, widget.value)
 
-    @notify_exceptions
     def _update_main(self, event: param.Event) -> None:
         try:
             # XXX For some reason, which I can't understand
@@ -418,7 +409,7 @@ class SeareportUI:
             # Construct the list of objects that will be part of the main overlay
             # Depending on the choices of the user, this list may be populated with
             # additional items later
-            main_overlay_components = [self._tiles, self._raster]
+            main_overlay_components = [self._tiles, self._raster.opts(fontscale=self._fontscale)]
 
             # Render the wireframe if necessary
             if self.show_mesh.value:
@@ -434,6 +425,7 @@ class SeareportUI:
                     ds=ds_ts,
                     variable=self.ts_variable.value,
                     source_raster=self._raster,
+                    fontscale=self._fontscale,
                 ).opts(responsive=True)
                 ts_row = pn.Column(
                     pn.layout.Spacer(height=50),
@@ -441,14 +433,13 @@ class SeareportUI:
                 )
 
             main_overlay = reduce(operator.mul, main_overlay_components)
-            main_row = main_overlay
 
             # For the record, (and this is probably a panel bug), if we use
             #     self._main.append(ts_plot)
             # then the timeseries plot does not get updated each time we click on the
             # DynamicMap. By replacing the `objects` though, then the updates work fine.
             self._main.clear()
-            self._main.objects = [row for row in (main_row, self._cbar_row, ts_row) if row is not None]
+            self._main.objects = [row for row in (main_overlay, self._cbar_row, ts_row) if row is not None]
 
         except Exception as exc:
             print(exc)

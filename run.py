@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import logging.config
 
 import panel as pn
 from holoviews import opts as hvopts
