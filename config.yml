@@ -26,7 +26,7 @@ logging:
     console:
       level: 'DEBUG'
       class: 'logging.StreamHandler'
-      formatter: 'standard'
+      formatter: 'verbose'
       stream : 'ext://sys.stdout'
     file_handler:
       level: 'DEBUG'
@@ -36,12 +36,18 @@ logging:
       mode: 'a'
       encoding: 'utf-8'
   loggers:
+    seareport_server:
+      level: 'DEBUG'
+      propagate: false
+      handlers:
+        - 'console'
     thalassa:
       level: 'DEBUG'
       propagate: false
       handlers:
         - 'console'
+
   root:
-    level: 'INFO'
+    level: 'DEBUG'
     handlers:
       - 'console'
