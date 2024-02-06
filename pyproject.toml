@@ -28,16 +28,17 @@ adlfs = "*"
 azure-identity = "*"
 decorator = "*"
 geoviews = "*"
-holoviews = "*"
+holoviews = "*, !=1.18.2"  # https://github.com/holoviz/holoviews/issues/6101
 panel = "*"
 param = "*"
 "ruamel.yaml" = "*"
-thalassa = ">=0.4.1"
+thalassa = ">=0.4.5"
 #thalassa = {path = "../thalassa", develop = true}
 xarray = "*"
 
 [tool.poetry.group.dev.dependencies]
 mypy = ">=1"
+types-decorator = "*"
 
 [build-system]
 requires = [

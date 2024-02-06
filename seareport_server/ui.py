@@ -5,24 +5,25 @@ import gc
 import logging
 import operator
 import os.path
-import pathlib
-
+import sys
+import time
+import typing as T
 from functools import reduce
 
 import adlfs
+import decorator
 import geoviews as gv
 import panel as pn
 import param
 import xarray as xr
-
 from azure.identity.aio import AzureCliCredential
 from azure.identity.aio import ChainedTokenCredential
 from azure.identity.aio import EnvironmentCredential
 from azure.identity.aio import ManagedIdentityCredential
 from thalassa import api
+from thalassa import utils
 
 # from thalassa import normalization
-from thalassa import utils
 
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,20 @@ logger.error(logger.handlers)
 
 DATA_DIR = "./data/"
 DATA_GLOB = DATA_DIR + os.path.sep + "*"
+
+
+@decorator.contextmanager
+def timer(
+    msg: str = "",
+    log_func: T.Callable[..., None] = logger.debug,
+    stacklevel: int = 0,
+) -> T.Generator[T.Any, T.Any, T.Any]:
+    t1 = time.perf_counter()
+    yield
+    elapsed = time.perf_counter() - t1
+    if not stacklevel:
+        stacklevel = 5 if sys._getframe(2).f_code.co_filename.endswith("site-packages/decorator.py") else 3
+    log_func("%s: %.9fs", msg, elapsed, stacklevel=stacklevel)
 
 
 def get_credential() -> ChainedTokenCredential:
@@ -170,7 +185,20 @@ def get_dataset(dataset_file: str) -> xr.Dataset:
         storage_options=STORAGE_OPTIONS,
         chunks={},
     )
+    # ds = crop(ds, shapely.box(-180, -74.9, 180, 74.9))
     return ds
+
+
+# @pn.cache(max_items=5, policy='LRU')
+# def get_dataset(dataset_file: str) -> xr.Dataset:
+#     ds: xr.Dataset = api.open_dataset(
+#         dataset_file,
+#         engine="zarr",
+#         normalize=True,
+#         chunks={},
+#     )
+#     print(ds)
+#     return ds
 
 
 def get_dataset_files() -> list[str]:
@@ -192,7 +220,7 @@ class SeareportUI:
     These objects should be of `pn.Column` type. You can append
     """
 
-    def __init__(self, fontscale: float = 1.2) -> None:
+    def __init__(self, fontscale: float = 1.4) -> None:
         self._dataset: xr.Dataset
         self._tiles: gv.Tiles = api.get_tiles()
         self._mesh: gv.DynamicMap | None = None
@@ -205,7 +233,11 @@ class SeareportUI:
         self._sidebar = pn.Column()
 
         # Define widgets
-        self.dataset_file = pn.widgets.Select(name="Dataset file", options=["", *get_dataset_files()])
+        self.dataset_file = pn.widgets.Select(
+            name="Dataset file",
+            options=["", *get_dataset_files()],
+            # options=["", *pathlib.Path("data").glob("*.zarr")],
+        )
         self.variable = pn.widgets.Select(name="Plot Variable")
         self.ts_variable = pn.widgets.Select(name="Timeseries Variable")
         self.time = pn.widgets.Select(name="Time")
@@ -238,14 +270,15 @@ class SeareportUI:
         self.render_button.on_click(callback=self._update_main)
 
         # Periodically update the dataset files
-        pn.state.schedule_task("update_dataset_files", self._update_dataset_files, period="60s")  # type: ignore[arg-type]
+        pn.state.schedule_task("update_dataset_files", self._update_dataset_files, period="300s")
 
         logger.debug("Callback definitions: done")
 
         self._reset_ui(message=choose_info_message())
 
-    async def _update_dataset_files(self) -> None:
+    def _update_dataset_files(self) -> None:
         dataset_files = get_dataset_files()
+        logger.debug("Updated dataset files")
         self.dataset_file.param.set_param(options=["", *dataset_files])
 
     def _reset_colorbar(self) -> None:
@@ -259,12 +292,14 @@ class SeareportUI:
         self.show_mesh.param.set_param(disabled=True)
         # self.show_timeseries.param.set_param(disabled=True)
         self.render_button.param.set_param(disabled=True)
-        self._main.objects = [message]
+        with timer("main: reset UI"):
+            self._main.objects = [message]
         self._mesh = None
         self._raster = None
         self._reset_colorbar()
 
     def _update_dataset_file(self, event: param.Event) -> None:
+        logger.debug("Update dataset: Start")
         dataset_file = self.dataset_file.value
         if not dataset_file:
             logger.debug("No dataset has been selected. Resetting the UI.")
@@ -294,8 +329,10 @@ class SeareportUI:
                 )
                 self.keep_zoom.param.set_param(disabled=False)
                 self.show_mesh.param.set_param(disabled=False)
-                self._main.objects = [PLEASE_RENDER]
+                with timer("main: update_dataset_file"):
+                    self._main.objects = [PLEASE_RENDER]
                 self._reset_colorbar()
+        logger.debug("Update dataset: Finish")
 
     def _on_variable_change(self, event: param.Event) -> None:
         logger.warning(event)
@@ -322,7 +359,9 @@ class SeareportUI:
         for widget in widgets:
             logger.error("%s: %s", widget.name, widget.value)
 
+    @timer("MAIN")
     def _update_main(self, event: param.Event) -> None:
+        logger.info("Rendering: start")
         try:
             # XXX For some reason, which I can't understand
             # Inside this specific callback, the logger requires to be WARN and above...
@@ -347,7 +386,9 @@ class SeareportUI:
             # happening behind the scenes
             self._main_plot = None
             self._raster = None
-            self._main.objects = [*get_spinner().objects]
+            with timer("Rendering: Spinner"):
+                with timer("main: spinner"):
+                    self._main.objects = [*get_spinner().objects]
 
             # Now let's make an explicit call to `gc.collect()`. This will make sure
             # that the references to the old raster are really removed before the creation
@@ -359,7 +400,9 @@ class SeareportUI:
             # the first one remains in RAM.
             # In order to avoid this, we re-open the dataset in order to get a clean Dataset
             # instance without anything loaded into memory
-            ds = get_dataset(self.dataset_file.value)
+
+            with timer("Rendering: Open dataset"):
+                ds = get_dataset(self.dataset_file.value)
 
             # local variables
             variable = self.variable.value
@@ -386,25 +429,33 @@ class SeareportUI:
             # So, we will generate it on the fly the first time we need it.
             # Therefore, we store it as an instance attribute in order to reuse it in future renders
             if self.show_mesh.value and self._mesh is None:
-                self._mesh = api.get_wireframe(trimesh, x_range=lon_range, y_range=lat_range)
+                with timer("Rendering: Creating mesh"):
+                    self._mesh = api.get_wireframe(
+                        trimesh,
+                        x_range=lon_range,
+                        y_range=lat_range,
+                        hover=True,
+                    )
 
             # The raster needs to be stored as an instance attribute, too, because we want to
             # be able to restore the zoom level whenever we re-render
-            self._raster = api.get_raster(trimesh, x_range=lon_range, y_range=lat_range)
+            with timer("Rendering: Rendering raster"):
+                self._raster = api.get_raster(trimesh, x_range=lon_range, y_range=lat_range)
 
             # In order to control dynamically the ColorBar of the raster we create
             # a `panel.Row` with extra widgets.
             # When re-rendering we want to preserve the values of the Colobar widgets
-            clim_min = 0.2 if variable == "elev_max" else None
-            clim_max = 0.8 if variable == "elev_max" else None
-            if self._cbar_row:
-                clim_min = self._cbar_row[1].value  # type: ignore[union-attr]
-                clim_max = self._cbar_row[2].value  # type: ignore[union-attr]
-            self._cbar_row = get_colorbar_row(
-                raster=self._raster,
-                clim_min_value=clim_min,
-                clim_max_value=clim_max,
-            )
+            with timer("Rendering: Creating cbar_row"):
+                clim_min = 0.2 if "elev" in variable else None
+                clim_max = 0.8 if "elev" in variable else None
+                if self._cbar_row:
+                    clim_min = self._cbar_row[1].value  # type: ignore[union-attr]
+                    clim_max = self._cbar_row[2].value  # type: ignore[union-attr]
+                self._cbar_row = get_colorbar_row(
+                    raster=self._raster,
+                    clim_min_value=clim_min,
+                    clim_max_value=clim_max,
+                )
 
             # Construct the list of objects that will be part of the main overlay
             # Depending on the choices of the user, this list may be populated with
@@ -421,32 +472,35 @@ class SeareportUI:
             # the rendable objects
             ts_row = None
             if self.ts_variable.value:
-                ts_plot = api.get_tap_timeseries(
-                    ds=ds_ts,
-                    variable=self.ts_variable.value,
-                    source_raster=self._raster,
-                    fontscale=self._fontscale,
-                ).opts(responsive=True)
-                ts_row = pn.Column(
-                    pn.layout.Spacer(height=50),
-                    ts_plot,
-                )
+                with timer("Rendering: Rendering TS"):
+                    ts_plot = api.get_tap_timeseries(
+                        ds=ds_ts,
+                        variable=self.ts_variable.value,
+                        source_raster=self._raster,
+                        fontscale=self._fontscale,
+                    ).opts(responsive=True)
+                    ts_row = pn.Column(
+                        pn.layout.Spacer(height=50),
+                        ts_plot,
+                    )
 
-            main_overlay = reduce(operator.mul, main_overlay_components)
+            with timer("Rendering: reduce"):
+                main_overlay = reduce(operator.mul, main_overlay_components)
 
             # For the record, (and this is probably a panel bug), if we use
             #     self._main.append(ts_plot)
             # then the timeseries plot does not get updated each time we click on the
             # DynamicMap. By replacing the `objects` though, then the updates work fine.
-            self._main.clear()
-            self._main.objects = [row for row in (main_overlay, self._cbar_row, ts_row) if row is not None]
+            with timer("Rendering: replacing objects - create list"):
+                ll = [row for row in (main_overlay, self._cbar_row, ts_row) if row is not None]
+                self._main.clear()
+                self._main.objects = ll
 
-        except Exception as exc:
-            print(exc)
-            # notify(exc)
-            # notify(f"{traceback.format_exc()}")
+        except Exception:
             logger.exception("Something went wrong")
             raise
+        finally:
+            logger.info("Rendering: finished")
 
     @property
     def sidebar(self) -> pn.Column:
