@@ -24,16 +24,17 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = ">=3.9, <4.0"
+adlfs = "*"
+azure-identity = "*"
+decorator = "*"
 geoviews = "*"
 holoviews = "*"
 panel = "*"
 param = "*"
 "ruamel.yaml" = "*"
-#thalassa = ">=0.4.1"
+thalassa = ">=0.4.1"
+#thalassa = {path = "../thalassa", develop = true}
 xarray = "*"
-adlfs = "*"
-azure-identity = "*"
-thalassa = {path = "../thalassa", develop = true}
 
 [tool.poetry.group.dev.dependencies]
 mypy = ">=1"
